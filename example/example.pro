@@ -1,10 +1,13 @@
 TEMPLATE = subdirs
 
-SUBDIRS += helloworld
-SUBDIRS += basic-server
-SUBDIRS += benchmark
-SUBDIRS += nodejs
+#SUBDIRS += helloworld
+#SUBDIRS += basic-server
+#SUBDIRS += benchmark
+#SUBDIRS += nodejs
 
-unix:SUBDIRS += keep-alive
+SUBDIRS += kinect
+
+
+#unix:SUBDIRS += keep-alive
 
 
