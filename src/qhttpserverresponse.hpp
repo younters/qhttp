@@ -50,6 +50,9 @@ public: // QHttpAbstractOutput methods:
     /** @see QHttpAbstractOutput::end(). */
     void            end(const QByteArray &data = QByteArray()) override;
 
+    // /** @see QHttpAbstractOutput::flush(). */
+    //void            flush(const QByteArray &data = QByteArray()) override;
+
 public:
     /** returns the parent QHttpConnection object. */
     QHttpConnection* connection() const;

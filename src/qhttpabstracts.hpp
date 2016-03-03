@@ -152,6 +152,8 @@ public:
      * @sa write() */
     virtual void            end(const QByteArray &data = QByteArray())=0;
 
+    //virtual void flush(const QByteArray &data = QByteArray())=0;
+
 signals:
     /** Emitted when all the data has been sent.
      * this signal indicates that the underlaying socket has transmitted all

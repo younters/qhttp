@@ -13,20 +13,99 @@
 
 #include <QLocalServer>
 #include <QTimer>
+#include <QTime>
+#include <QThread>
+//usr/local/Cellar/libusb/1.0.20/include/libusb-1.0 /
+
+//#include "../../libusb-1.0/libusb.h"
+
+//#include <libfreenect/libfreenect.hpp>
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/core.hpp>
 
 #include "../include/unixcatcher.hpp"
 ///////////////////////////////////////////////////////////////////////////////
 
+using namespace cv;
+using namespace std;
+
+VideoCapture cap(0);
 void runServer(QCoreApplication& app, const QString& portOrPath) {
     using namespace qhttp::server;
 
     QHttpServer server(&app);
     // listening tcp port or Unix path
+
+
+
+      //prepare_video();
+
     server.listen(portOrPath, [](QHttpRequest* req, QHttpResponse* res) {
 
-        res->setStatusCode(qhttp::ESTATUS_OK);      // status 200
-        res->addHeader("connection", "close");      // it's the default header, this line can be omitted.
-        res->end("Hello World!\n");                 // response body data
+
+
+        //if(!cap.isOpened())  // check if we succeeded
+          //  return;
+
+        Mat edges;
+
+        //whileloop
+        Mat frame;
+            cap >> frame; // get a new frame from camera
+        //cap.read(&frame);
+        //frame = imread("./Alpaca1.jpg", CV_LOAD_IMAGE_COLOR);
+
+            cvtColor(frame, edges, CV_BGR2GRAY);
+
+
+
+                // QByteArray BoundaryString = ("--boundary\r\n" \
+                                             "Content-Type: image/jpeg\r\n" \
+                                             "Content-Length: ");
+
+                //BoundaryString.append(QString::number(CurrentImg.length()));
+
+                //BoundaryString.append("\r\n\r\n");
+                QByteArray ContentType = ("HTTP/1.0 200 OK\r\n" \
+                                          "Server: localhost example server\r\n" \
+                                          "Cache-Control: no-cache\r\n" \
+                                          "Cache-Control: private\r\n" \
+                                          "Content-Type: multipart/x-mixed-replace;boundary=--boundary\r\n\r\n");
+
+                res->write(ContentType);
+
+                while(1){
+
+                    std::vector<uchar> buff;
+                    imencode(".jpg",frame,buff);
+                        std::string content(buff.begin(), buff.end());
+                        QByteArray CurrentImg(QByteArray::fromStdString(content));
+
+
+
+                            QByteArray BoundaryString = ("--boundary\r\n" \
+                                                         "Content-Type: image/jpeg\r\n" \
+                                                         "Content-Length: ");
+
+                            BoundaryString.append(QString::number(CurrentImg.length()));
+                            BoundaryString.append("\r\n\r\n");
+                    //res->write(BoundaryString);
+                            res->addHeader("Content-Length", QByteArray::number(CurrentImg.length()));
+                            res->addHeader("Content-Type", "image/jpeg");
+                    res->end(CurrentImg);
+                    //res->flush();
+                    QThread::msleep((1000/5));
+                   /* QTime dieTime = QTime::currentTime().addSecs(1);
+                    while (QTime::currentTime() < dieTime)
+                        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);*/
+
+                }
+        /*res->setStatusCode(qhttp::ESTATUS_OK);      // status 200
+        res->addHeader("connection", "");      // it's the default header, this line can be omitted.
+
+        res->end(CurrentImg);*/
+        //res->end("Hello World!\n");                 // response body data
 
         // when "connection: close", the req and res will be deleted automatically.
 
@@ -47,100 +126,43 @@ void runServer(QCoreApplication& app, const QString& portOrPath) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
-void    runClient(QCoreApplication& app, const QString& portOrPath) {
-    using namespace qhttp::client;
-
-    QUrl url;
-    if ( portOrPath.toUShort() > 0 ) {
-        url.setScheme("http");
-        url.setHost("localhost");
-        url.setPort(portOrPath.toUShort());
-
-    } else {
-        url = QUrl::fromLocalFile(portOrPath);
+/*int init_kinect() {
+    if (freenect_init(&f_ctx, NULL) < 0) {
+        printf("Freenect Framework Initialization Failed!\n");
+        return 1;
     }
 
+    freenect_select_subdevices(f_ctx, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
+    int nr_devices = freenect_num_devices (f_ctx);
 
-    QHttpClient  client(&app);
-
-    bool success = client.request(qhttp::EHTTP_GET, url, [](QHttpResponse* res) {
-        // response handler, called when the HTTP headers of the response are ready
-        res->collectData(128);
-        // called when all data in HTTP response have been read.
-        res->onEnd([res]() {
-            // print the XML body of the response
-            puts("\n[incoming response:]");
-            puts(res->collectedData().constData());
-            puts("\n\n");
-
-            QCoreApplication::instance()->quit();
-        });
-
-        // just for fun! print headers:
-        puts("\n[Headers:]");
-        const qhttp::THeaderHash& hs = res->headers();
-        for ( auto cit = hs.constBegin(); cit != hs.constEnd(); cit++) {
-            printf("%s : %s\n", cit.key().constData(), cit.value().constData());
-        }
-        fflush(stdout);
-    });
-
-    if ( !success ) {
-        fprintf(stderr, "can not send a request to %s\n", qPrintable(url.toString()));
-        return;
+    if (nr_devices < 1) {
+        printf("No Kinect Sensors were detected! %i\n", nr_devices);
+        freenect_shutdown(f_ctx);
+        return 1;
     }
 
-    app.exec();
-}
+    if (freenect_open_device(f_ctx, &f_dev, 0) < 0) {
+        printf("Could not open Kinect Device\n");
+        freenect_shutdown(f_ctx);
+        return 1;
+    }
 
-///////////////////////////////////////////////////////////////////////////////
+    freenect_set_tilt_degs(f_dev, 0);
+    freenect_set_depth_callback(f_dev, depth_callback);
+    freenect_set_video_callback(f_dev, rgb_callback);
 
-void    runWeatherClient(QCoreApplication& app) {
-    using namespace qhttp::client;
+    freenect_set_depth_mode(f_dev, freenect_find_depth_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_DEPTH_MM));
+    // freenect_set_video_mode(f_dev, freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_RGB));
+    freenect_set_video_mode(f_dev, freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_IR_8BIT));
 
-    QHttpClient  client(&app);
-    QByteArray   httpBody;
-
-    QUrl weatherUrl("http://api.openweathermap.org/data/2.5/weather?q=tehran,ir&units=metric&mode=xml");
-
-    client.request(qhttp::EHTTP_GET, weatherUrl, [&httpBody](QHttpResponse* res) {
-        // response handler, called when the HTTP headers of the response are ready
-
-        // gather HTTP response data
-        res->onData([&httpBody](const QByteArray& chunk) {
-            httpBody.append(chunk);
-        });
-
-        // called when all data in HTTP response have been read.
-        res->onEnd([&httpBody]() {
-            // print the XML body of the response
-            puts("\n[incoming response: (body)]");
-            puts(httpBody.constData());
-            puts("\n\n");
-
-            QCoreApplication::instance()->quit();
-        });
-
-        // just for fun! print headers:
-        puts("\n[Headers:]");
-        const qhttp::THeaderHash& hs = res->headers();
-        for ( auto cit = hs.constBegin(); cit != hs.constEnd(); cit++) {
-            printf("%s : %s\n", cit.key().constData(), cit.value().constData());
-        }
-    });
-    // set a timeout for making the request
-    client.setConnectingTimeOut(10000, []{
-        qDebug("conneting to HTTP server timed out!");
-        QCoreApplication::quit();
-    });
-
-    app.exec();
-}
-
+    freenect_start_depth(f_dev);
+    freenect_start_video(f_dev);
+    return 0;
+}*/
 ///////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char ** argv) {
+
     QCoreApplication app(argc, argv);
 #if defined(Q_OS_UNIX)
     catchUnixSignals({SIGQUIT, SIGINT, SIGTERM, SIGHUP});
@@ -148,7 +170,7 @@ int main(int argc, char ** argv) {
 
     app.setApplicationName("kinect");
     app.setApplicationVersion("1.0.0");
-
+    cap.open(0);
     runServer(app, "3164");
     /*
     QCommandLineParser parser;

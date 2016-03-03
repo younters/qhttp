@@ -52,7 +52,14 @@ QHttpResponse::end(const QByteArray &data) {
     if ( d->endPacket(data) )
         emit done(!d->ikeepAlive);
 }
+/*void
+QHttpResponse::flush(const QByteArray &data) {
+    Q_D(QHttpResponse);
 
+    //if ( d->endPacket(data) )
+      //  emit done(!d->ikeepAlive);
+}
+*/
 QHttpConnection*
 QHttpResponse::connection() const {
     return d_func()->iconnection;
